@@ -25,13 +25,14 @@
   label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 5px}
   .field{margin:0 0 13px}
   .field:last-child{margin-bottom:0}
-  input[type=text],input[type=email],textarea{
+  input[type=text],input[type=email],textarea,select{
     width:100%;font:inherit;color:var(--ink);background:#fff;
     border:1px solid var(--line);border-radius:10px;padding:11px 12px;
   }
-  input:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(10,108,255,.12)}
+  select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.6' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:34px}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(10,108,255,.12)}
   textarea{resize:vertical;min-height:78px}
-  .qrbox{text-align:center;padding:8px 8px 4px}
+  .qrwrap{text-align:center;margin-top:14px}
   #qr{display:inline-block;background:#fff;padding:14px;border-radius:12px;border:1px solid var(--line);width:100%;max-width:320px}
   #qr svg{display:block;width:100%;height:auto}
   .qrhint{color:var(--muted);font-size:13px;margin:10px 4px 0}
@@ -51,44 +52,70 @@
     background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;color:#33373d}
   .savednote{font-size:12px;color:var(--good);margin-top:8px;height:14px}
   .sub{font-size:12px;color:var(--muted);margin:-4px 2px 12px}
+  .tabs{display:flex;gap:6px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px;margin:0 0 14px}
+  .tab{flex:1;font:inherit;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);border-radius:8px;padding:10px}
+  .tab.active{background:var(--accent);color:#fff}
+  .hide{display:none !important}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>Connect</h1>
-    <p>Type where we met and what we covered. Show the QR. They scan it, hit send, and the email lands in your inbox with all the context.</p>
+    <p>Two ways to connect: a pre-filled email with context, or your LinkedIn. Pick a tab, show the QR.</p>
   </header>
 
-  <div class="card">
-    <div class="field">
-      <label for="event">Where we met / event</label>
-      <input type="text" id="event" placeholder="e.g. Care Tech Summit, June 2026" autocomplete="off">
-    </div>
-    <div class="field">
-      <label for="spoke">What we spoke about</label>
-      <textarea id="spoke" placeholder="e.g. Their LA's sufficiency pressure and the referral data we ran"></textarea>
-    </div>
+  <div class="tabs">
+    <button class="tab active" id="tabEmail" type="button">Email card</button>
+    <button class="tab" id="tabLi" type="button">LinkedIn</button>
   </div>
 
-  <div class="card qrbox">
-    <div id="qr"></div>
-    <div class="qrhint">Point a phone camera at this. It opens a pre-filled email to you.</div>
-    <div class="qrhint" id="densenote" style="color:#b26b00"></div>
-    <div class="btnrow">
-      <a class="btn" id="testlink" href="#">Test on this phone</a>
-      <button class="btn primary" id="reset" type="button">New person</button>
+  <div class="card" id="panelEmail">
+    <div class="field">
+      <label for="topic">What you spoke about</label>
+      <select id="topic"></select>
     </div>
-    <details style="margin-top:12px;text-align:left">
+    <div class="field hide" id="otherField">
+      <label for="other">Type what you spoke about</label>
+      <input type="text" id="other" placeholder="e.g. Their LA's placement pressures" autocomplete="off">
+    </div>
+
+    <div class="btnrow">
+      <button class="btn primary" id="showqr" type="button">Show QR code</button>
+      <button class="btn" id="reset" type="button">New contact</button>
+    </div>
+
+    <div class="qrwrap hide" id="qrwrap">
+      <div id="qr"></div>
+      <div class="qrhint">Point a phone camera at this. It opens a pre-filled email to you.</div>
+      <div class="qrhint" id="densenote" style="color:#b26b00"></div>
+    </div>
+
+    <details style="margin-top:12px">
       <summary>Preview the email</summary>
       <div class="preview" id="preview"></div>
     </details>
+  </div>
+
+  <div class="card hide" id="panelLi">
+    <div class="qrwrap" style="margin-top:0">
+      <div id="liqr"></div>
+      <div class="qrhint">Scan to open my LinkedIn profile and connect.</div>
+    </div>
   </div>
 
   <div class="card">
     <details id="settings">
       <summary>Your details</summary>
       <p class="sub">Saved on this device. Set once.</p>
+      <div class="field">
+        <label for="event">Where you met / event</label>
+        <input type="text" id="event" placeholder="e.g. Care Tech Summit, June 2026" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="topics">Topic options (one per line)</label>
+        <textarea id="topics" placeholder="One topic per line"></textarea>
+      </div>
       <div class="field">
         <label for="to">Your email (where replies land)</label>
         <input type="email" id="to" autocomplete="off">
@@ -123,8 +150,10 @@
 (function(){
   "use strict";
 
-  // ---- Default details (edit in "Your details", saved per device) ----
+  // ---- Defaults (edit under "Your details", saved per device) ----
   var DEFAULTS = {
+    event:    "",
+    topics:   "Bridge referral matching\nSufficiency and market data\nBid writing support\nJust staying in touch",
     to:       "marcus@elyndra.co.uk",
     subject:  "Great to meet you",
     name:     "Marcus Williamson",
@@ -134,8 +163,9 @@
   };
 
   var $ = function(id){ return document.getElementById(id); };
-  var settingIds = ["to","subject","name","company","linkedin","brief"];
-  var KEY = "connect.settings.v1";
+  var OTHER = "__other__";
+  var settingIds = ["event","topics","to","subject","name","company","linkedin","brief"];
+  var KEY = "connect.settings.v2";
 
   // ---- Load / save settings ----
   function loadSettings(){
@@ -154,14 +184,39 @@
     saveSettings._t = setTimeout(function(){ n.textContent=""; }, 1400);
   }
 
-  // ---- Build the email body ----
-  function buildBody(){
-    var name = $("name").value.trim();
-    var company = $("company").value.trim();
-    var linkedin = $("linkedin").value.trim();
-    var brief = $("brief").value.trim();
+  // ---- Topic dropdown ----
+  function topicList(){
+    return $("topics").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+  }
+  function populateTopics(){
+    var sel = $("topic"), current = sel.value;
+    sel.innerHTML = "";
+    sel.add(new Option("Select a topic…", ""));
+    topicList().forEach(function(t){ sel.add(new Option(t, t)); });
+    sel.add(new Option("Other…", OTHER));
+    var match = Array.prototype.some.call(sel.options, function(o){ return o.value === current; });
+    sel.value = match ? current : "";
+    syncOther();
+  }
+  function syncOther(){
+    $("otherField").classList.toggle("hide", $("topic").value !== OTHER);
+  }
+  function getSpoke(){
+    var v = $("topic").value;
+    if (v === OTHER) return $("other").value.trim();
+    return v;
+  }
+
+  // ---- Build the email ----
+  function buildSubject(){
+    var s = $("subject").value.trim() || "Great to meet you";
     var event = $("event").value.trim();
-    var spoke = $("spoke").value.trim();
+    return event ? (s + " - " + event) : s;
+  }
+  function buildBody(){
+    var name = $("name").value.trim(), company = $("company").value.trim();
+    var linkedin = $("linkedin").value.trim(), brief = $("brief").value.trim();
+    var event = $("event").value.trim(), spoke = getSpoke();
 
     var lines = [];
     lines.push("Hi " + (name || "there") + ",");
@@ -180,54 +235,82 @@
     if (linkedin) lines.push((name ? ("Connect with " + name) : "Connect") + " on LinkedIn: " + linkedin);
     return lines.join("\n");
   }
-
-  function buildSubject(){
-    var s = $("subject").value.trim() || "Great to meet you";
-    var event = $("event").value.trim();
-    return event ? (s + " - " + event) : s;
-  }
-
   function buildMailto(){
-    var to = $("to").value.trim();
-    var subject = buildSubject();
-    var body = buildBody();
-    return "mailto:" + encodeURIComponent(to) +
-           "?subject=" + encodeURIComponent(subject) +
-           "&body=" + encodeURIComponent(body);
+    return "mailto:" + encodeURIComponent($("to").value.trim()) +
+           "?subject=" + encodeURIComponent(buildSubject()) +
+           "&body=" + encodeURIComponent(buildBody());
   }
 
-  // ---- Render ----
-  function render(){
+  // ---- QR + preview ----
+  function updatePreview(){
+    $("preview").textContent = "To: " + $("to").value.trim() +
+      "\nSubject: " + buildSubject() + "\n\n" + buildBody();
+  }
+  function showQR(){
     var mailto = buildMailto();
-    // QR
     try {
-      var qr = qrcode(0, "L");      // auto version, error-correction L (clean screen scan)
-      qr.addData(mailto);
-      qr.make();
+      var qr = qrcode(0, "L");          // auto version, EC level L
+      qr.addData(mailto); qr.make();
       $("qr").innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
       $("densenote").textContent = qr.getModuleCount() >= 109
         ? "Getting dense. Keep notes short for an easy scan." : "";
     } catch(e){
-      $("qr").textContent = "Too much text to encode. Trim what you spoke about.";
+      $("qr").textContent = "Too much text to encode. Use a shorter topic.";
       $("densenote").textContent = "";
     }
-    // Test link + preview
-    $("testlink").setAttribute("href", mailto);
-    $("preview").textContent = "To: " + $("to").value.trim() +
-      "\nSubject: " + buildSubject() + "\n\n" + buildBody();
+    $("qrwrap").classList.remove("hide");
+    $("showqr").textContent = "Hide QR code";
+  }
+  function hideQR(){
+    $("qrwrap").classList.add("hide");
+    $("showqr").textContent = "Show QR code";
+  }
+  function changed(){ updatePreview(); hideQR(); }   // any edit invalidates a shown QR
+
+  // ---- LinkedIn QR ----
+  function showLinkedinQR(){
+    var url = $("linkedin").value.trim();
+    if (!url){ $("liqr").textContent = "Add your LinkedIn URL in Your details."; return; }
+    try {
+      var qr = qrcode(0, "M");
+      qr.addData(url); qr.make();
+      $("liqr").innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+    } catch(e){ $("liqr").textContent = "Could not generate the LinkedIn QR."; }
+  }
+  function liMode(){ return !$("panelLi").classList.contains("hide"); }
+  function setMode(li){
+    $("panelLi").classList.toggle("hide", !li);
+    $("panelEmail").classList.toggle("hide", li);
+    $("tabLi").classList.toggle("active", li);
+    $("tabEmail").classList.toggle("active", !li);
+    if (li) showLinkedinQR(); else hideQR();
   }
 
   // ---- Wire up ----
   loadSettings();
-  ["event","spoke"].forEach(function(id){ $(id).addEventListener("input", render); });
-  settingIds.forEach(function(id){
-    $(id).addEventListener("input", function(){ saveSettings(); render(); });
+  populateTopics();
+
+  $("tabEmail").addEventListener("click", function(){ setMode(false); });
+  $("tabLi").addEventListener("click", function(){ setMode(true); });
+  $("showqr").addEventListener("click", function(){
+    $("qrwrap").classList.contains("hide") ? showQR() : hideQR();
   });
   $("reset").addEventListener("click", function(){
-    $("event").value = ""; $("spoke").value = "";
-    $("event").focus(); render();
+    $("topic").value = ""; $("other").value = ""; syncOther();
+    changed(); $("topic").focus();
   });
-  render();
+  $("topic").addEventListener("change", function(){ syncOther(); changed(); });
+  $("other").addEventListener("input", changed);
+  settingIds.forEach(function(id){
+    $(id).addEventListener("input", function(){
+      saveSettings();
+      if (id === "topics") populateTopics();
+      changed();
+      if (id === "linkedin" && liMode()) showLinkedinQR();
+    });
+  });
+
+  updatePreview();
 })();
 </script>
 </body>
